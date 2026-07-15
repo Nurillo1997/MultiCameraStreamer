@@ -159,6 +159,160 @@ on_pad_added(
     gst_object_unref(sink_pad);
 }
 
+static void
+on_rtsp_pad_added(
+    GstElement *source,
+    GstPad *new_pad,
+    gpointer user_data
+)
+{
+    CameraPipeline *camera_pipeline;
+    GstPad *sink_pad;
+    GstCaps *caps;
+    const GstStructure *structure;
+    const gchar *media_type;
+
+    camera_pipeline = user_data;
+
+    sink_pad = gst_element_get_static_pad(
+        camera_pipeline->decoder,
+        "sink"
+    );
+
+    if (sink_pad == NULL)
+    {
+        return;
+    }
+
+    if (gst_pad_is_linked(sink_pad))
+    {
+        gst_object_unref(sink_pad);
+        return;
+    }
+
+    caps = gst_pad_get_current_caps(new_pad);
+
+    if (caps == NULL)
+    {
+        caps = gst_pad_query_caps(
+            new_pad,
+            NULL
+        );
+    }
+
+    if (caps == NULL || gst_caps_is_empty(caps))
+    {
+        if (caps != NULL)
+        {
+            gst_caps_unref(caps);
+        }
+
+        gst_object_unref(sink_pad);
+        return;
+    }
+
+    structure = gst_caps_get_structure(
+        caps,
+        0
+    );
+
+    media_type = gst_structure_get_name(
+        structure
+    );
+
+    /*
+     * rtspsrc produces RTP streams.
+     * For now, only link video RTP pads.
+     */
+    if (g_str_has_prefix(
+            media_type,
+            "application/x-rtp"))
+    {
+        const gchar *media;
+
+        media = gst_structure_get_string(
+            structure,
+            "media"
+        );
+
+        if (g_strcmp0(media, "video") == 0)
+        {
+            if (gst_pad_link(
+                    new_pad,
+                    sink_pad) != GST_PAD_LINK_OK)
+            {
+                g_printerr(
+                    "Failed to link RTSP source for camera: %s\n",
+                    camera_pipeline->camera->name
+                );
+            }
+        }
+    }
+
+    gst_caps_unref(caps);
+    gst_object_unref(sink_pad);
+}
+
+static GstElement *
+create_source(const Camera *camera)
+{
+    GstElement *source;
+
+    if (camera == NULL)
+    {
+        return NULL;
+    }
+
+    switch (camera->source_type)
+    {
+        case CAMERA_SOURCE_FILE:
+            source = gst_element_factory_make(
+                "filesrc",
+                NULL
+            );
+
+            if (source != NULL)
+            {
+                g_object_set(
+                    source,
+                    "location",
+                    camera->source,
+                    NULL
+                );
+            }
+
+            return source;
+
+        case CAMERA_SOURCE_RTSP:
+            source = gst_element_factory_make(
+                "rtspsrc",
+                NULL
+            );
+
+            if (source != NULL)
+            {
+                g_object_set(
+                    source,
+                    "location",
+                    camera->source,
+                    "latency",
+                    100,
+                    NULL
+                );
+            }
+
+            return source;
+
+        default:
+            g_printerr(
+                "Unsupported source type for camera: %s\n",
+                camera->name
+            );
+
+            return NULL;
+    }
+}
+
 CameraPipeline *
 camera_pipeline_new(Camera *camera)
 {
@@ -181,10 +335,9 @@ camera_pipeline_new(Camera *camera)
         camera->name
     );
 
-    camera_pipeline->source = gst_element_factory_make(
-        "filesrc",
-        NULL
-    );
+camera_pipeline->source = create_source(
+    camera
+);
 
     camera_pipeline->decoder = gst_element_factory_make(
         "decodebin",
@@ -228,12 +381,6 @@ camera_pipeline_new(Camera *camera)
         return NULL;
     }
 
-    g_object_set(
-        camera_pipeline->source,
-        "location",
-        camera->source,
-        NULL
-    );
 
     g_object_set(
         camera_pipeline->encoder,
@@ -260,18 +407,30 @@ camera_pipeline_new(Camera *camera)
         NULL
     );
 
+    if (camera->source_type == CAMERA_SOURCE_FILE)
+{
     if (!gst_element_link(
             camera_pipeline->source,
             camera_pipeline->decoder))
     {
         g_printerr(
-            "Failed to link source and decoder for camera: %s\n",
+            "Failed to link file source and decoder for camera: %s\n",
             camera->name
         );
 
         camera_pipeline_free(camera_pipeline);
         return NULL;
     }
+}
+    else if (camera->source_type == CAMERA_SOURCE_RTSP)
+{
+    g_signal_connect(
+        camera_pipeline->source,
+        "pad-added",
+        G_CALLBACK(on_rtsp_pad_added),
+        camera_pipeline
+    );
+}
 
     if (!gst_element_link_many(
             camera_pipeline->video_convert,
@@ -392,3 +551,4 @@ camera_pipeline_free(CameraPipeline *camera_pipeline)
 
     g_free(camera_pipeline);
 }
+
