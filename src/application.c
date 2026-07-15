@@ -15,7 +15,10 @@ print_cameras(const GPtrArray *cameras)
     {
         Camera *camera;
 
-        camera = g_ptr_array_index(cameras, i);
+        camera = g_ptr_array_index(
+            cameras,
+            i
+        );
 
         printf(
             "Camera loaded: id=%u, name=%s, source=%s\n",
@@ -68,7 +71,10 @@ application_init(Application *application)
 
     if (application->cameras == NULL)
     {
-        g_printerr("Failed to load camera configuration.\n");
+        g_printerr(
+            "Failed to load camera configuration.\n"
+        );
+
         return FALSE;
     }
 
@@ -76,7 +82,9 @@ application_init(Application *application)
 
     if (application->pipeline_manager == NULL)
     {
-        g_printerr("Failed to create pipeline manager.\n");
+        g_printerr(
+            "Failed to create pipeline manager.\n"
+        );
 
         g_clear_pointer(
             &application->cameras,
@@ -88,7 +96,33 @@ application_init(Application *application)
 
     if (!create_camera_pipelines(application))
     {
-        g_printerr("Failed to create camera pipelines.\n");
+        g_printerr(
+            "Failed to create camera pipelines.\n"
+        );
+
+        g_clear_pointer(
+            &application->pipeline_manager,
+            pipeline_manager_free
+        );
+
+        g_clear_pointer(
+            &application->cameras,
+            g_ptr_array_unref
+        );
+
+        return FALSE;
+    }
+
+    application->main_loop = g_main_loop_new(
+        NULL,
+        FALSE
+    );
+
+    if (application->main_loop == NULL)
+    {
+        g_printerr(
+            "Failed to create main loop.\n"
+        );
 
         g_clear_pointer(
             &application->pipeline_manager,
@@ -120,6 +154,22 @@ application_run(Application *application)
     }
 
     print_cameras(application->cameras);
+
+    if (!pipeline_manager_start(
+            application->pipeline_manager))
+    {
+        g_printerr(
+            "Failed to start camera pipelines.\n"
+        );
+
+        return;
+    }
+
+    printf("Camera pipelines started.\n");
+
+    g_main_loop_run(
+        application->main_loop
+    );
 }
 
 void
@@ -129,6 +179,18 @@ application_shutdown(Application *application)
     {
         return;
     }
+
+    if (application->pipeline_manager != NULL)
+    {
+        pipeline_manager_stop(
+            application->pipeline_manager
+        );
+    }
+
+    g_clear_pointer(
+        &application->main_loop,
+        g_main_loop_unref
+    );
 
     g_clear_pointer(
         &application->pipeline_manager,

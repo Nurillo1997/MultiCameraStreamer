@@ -9,6 +9,7 @@ typedef struct
 {
     GPtrArray *cameras;
     PipelineManager *pipeline_manager;
+    GMainLoop *main_loop;
 } Application;
 
 /**

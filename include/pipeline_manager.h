@@ -30,6 +30,20 @@ pipeline_manager_add_camera(
 );
 
 /**
+ * Starts all camera pipelines.
+ *
+ * Returns TRUE on success, FALSE on failure.
+ */
+gboolean
+pipeline_manager_start(PipelineManager *manager);
+
+/**
+ * Stops all camera pipelines.
+ */
+void
+pipeline_manager_stop(PipelineManager *manager);
+
+/**
  * Releases all resources owned by the pipeline manager.
  */
 void

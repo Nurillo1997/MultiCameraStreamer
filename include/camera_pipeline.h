@@ -8,7 +8,12 @@
 typedef struct
 {
     Camera *camera;
+
     GstElement *pipeline;
+    GstElement *source;
+    GstElement *decoder;
+    GstElement *video_convert;
+    GstElement *video_sink;
 } CameraPipeline;
 
 /**
@@ -20,6 +25,20 @@ typedef struct
  */
 CameraPipeline *
 camera_pipeline_new(Camera *camera);
+
+/**
+ * Starts the camera pipeline.
+ *
+ * Returns TRUE on success, FALSE on failure.
+ */
+gboolean
+camera_pipeline_start(CameraPipeline *camera_pipeline);
+
+/**
+ * Stops the camera pipeline.
+ */
+void
+camera_pipeline_stop(CameraPipeline *camera_pipeline);
 
 /**
  * Releases all resources owned by the camera pipeline.
