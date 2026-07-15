@@ -16,6 +16,8 @@ typedef struct
     GstElement *encoder;
     GstElement *parser;
     GstElement *rtsp_sink;
+
+     guint bus_watch_id;
 } CameraPipeline;
 
 /**

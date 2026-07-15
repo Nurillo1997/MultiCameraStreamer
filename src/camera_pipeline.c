@@ -1,5 +1,83 @@
 #include "camera_pipeline.h"
 
+static gboolean
+on_bus_message(
+    GstBus *bus,
+    GstMessage *message,
+    gpointer user_data
+)
+{
+    CameraPipeline *camera_pipeline;
+
+    camera_pipeline = user_data;
+
+    switch (GST_MESSAGE_TYPE(message))
+    {
+        case GST_MESSAGE_ERROR:
+        {
+            GError *error = NULL;
+            gchar *debug_info = NULL;
+
+            gst_message_parse_error(
+                message,
+                &error,
+                &debug_info
+            );
+
+            g_printerr(
+                "Pipeline error for camera '%s': %s\n",
+                camera_pipeline->camera->name,
+                error->message
+            );
+
+            if (debug_info != NULL)
+            {
+                g_printerr(
+                    "Debug information: %s\n",
+                    debug_info
+                );
+            }
+
+            g_clear_error(&error);
+            g_free(debug_info);
+
+            break;
+        }
+
+        case GST_MESSAGE_EOS:
+        {
+            if (camera_pipeline->camera->source_type ==
+                CAMERA_SOURCE_FILE)
+            {
+                g_print(
+                    "End of file reached for camera '%s'. Restarting...\n",
+                    camera_pipeline->camera->name
+                );
+
+                if (!gst_element_seek_simple(
+                        camera_pipeline->pipeline,
+                        GST_FORMAT_TIME,
+                        GST_SEEK_FLAG_FLUSH |
+                            GST_SEEK_FLAG_KEY_UNIT,
+                        0))
+                {
+                    g_printerr(
+                        "Failed to restart video for camera '%s'.\n",
+                        camera_pipeline->camera->name
+                    );
+                }
+            }
+
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return G_SOURCE_CONTINUE;
+}
+
 static void
 on_pad_added(
     GstElement *decoder,
@@ -20,6 +98,11 @@ on_pad_added(
         "sink"
     );
 
+    if (sink_pad == NULL)
+    {
+        return;
+    }
+
     if (gst_pad_is_linked(sink_pad))
     {
         gst_object_unref(sink_pad);
@@ -36,7 +119,8 @@ on_pad_added(
         );
     }
 
-    if (caps == NULL || gst_caps_is_empty(caps))
+    if (caps == NULL ||
+        gst_caps_is_empty(caps))
     {
         if (caps != NULL)
         {
@@ -56,7 +140,9 @@ on_pad_added(
         structure
     );
 
-    if (g_str_has_prefix(media_type, "video/"))
+    if (g_str_has_prefix(
+            media_type,
+            "video/"))
     {
         if (gst_pad_link(
                 new_pad,
@@ -77,6 +163,7 @@ CameraPipeline *
 camera_pipeline_new(Camera *camera)
 {
     CameraPipeline *camera_pipeline;
+    GstBus *bus;
 
     if (camera == NULL)
     {
@@ -209,6 +296,19 @@ camera_pipeline_new(Camera *camera)
         camera_pipeline
     );
 
+    bus = gst_element_get_bus(
+        camera_pipeline->pipeline
+    );
+
+    camera_pipeline->bus_watch_id =
+        gst_bus_add_watch(
+            bus,
+            on_bus_message,
+            camera_pipeline
+        );
+
+    gst_object_unref(bus);
+
     return camera_pipeline;
 }
 
@@ -268,6 +368,15 @@ camera_pipeline_free(CameraPipeline *camera_pipeline)
     if (camera_pipeline == NULL)
     {
         return;
+    }
+
+    if (camera_pipeline->bus_watch_id != 0)
+    {
+        g_source_remove(
+            camera_pipeline->bus_watch_id
+        );
+
+        camera_pipeline->bus_watch_id = 0;
     }
 
     if (camera_pipeline->pipeline != NULL)
