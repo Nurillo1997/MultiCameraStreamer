@@ -1,12 +1,38 @@
 #include "application.h"
 
 #include <stdio.h>
+#include <glib-unix.h>
 
 #include "camera.h"
 #include "config_manager.h"
 #include "pipeline_manager.h"
 
 #define CONFIG_FILE_PATH "config/streams.json"
+
+static gboolean
+handle_shutdown_signal(gpointer user_data)
+{
+    Application *application;
+
+    application = user_data;
+
+    g_print(
+        "\nShutdown signal received. Stopping application...\n"
+    );
+
+    if (application->main_loop != NULL)
+    {
+        g_main_loop_quit(
+            application->main_loop
+        );
+    }
+
+    /*
+     * Returning G_SOURCE_REMOVE removes this signal source
+     * from the GLib main loop.
+     */
+    return G_SOURCE_REMOVE;
+}
 
 static void
 print_cameras(const GPtrArray *cameras)
@@ -81,7 +107,8 @@ application_init(Application *application)
         return FALSE;
     }
 
-    application->pipeline_manager = pipeline_manager_new();
+    application->pipeline_manager =
+        pipeline_manager_new();
 
     if (application->pipeline_manager == NULL)
     {
@@ -140,6 +167,18 @@ application_init(Application *application)
         return FALSE;
     }
 
+    g_unix_signal_add(
+        SIGINT,
+        handle_shutdown_signal,
+        application
+    );
+
+    g_unix_signal_add(
+        SIGTERM,
+        handle_shutdown_signal,
+        application
+    );
+
     printf(
         "Application initialized with %u camera(s).\n",
         application->cameras->len
@@ -156,7 +195,9 @@ application_run(Application *application)
         return;
     }
 
-    print_cameras(application->cameras);
+    print_cameras(
+        application->cameras
+    );
 
     if (!pipeline_manager_start(
             application->pipeline_manager))
@@ -168,7 +209,9 @@ application_run(Application *application)
         return;
     }
 
-    printf("Camera pipelines started.\n");
+    printf(
+        "Camera pipelines started.\n"
+    );
 
     g_main_loop_run(
         application->main_loop
@@ -182,6 +225,10 @@ application_shutdown(Application *application)
     {
         return;
     }
+
+    g_print(
+        "Stopping camera pipelines...\n"
+    );
 
     if (application->pipeline_manager != NULL)
     {
@@ -205,5 +252,7 @@ application_shutdown(Application *application)
         g_ptr_array_unref
     );
 
-    printf("Application shutting down.\n");
+    g_print(
+        "Application shut down successfully.\n"
+    );
 }
