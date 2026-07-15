@@ -4,6 +4,7 @@
 
 #include "camera.h"
 #include "config_manager.h"
+#include "pipeline_manager.h"
 
 #define CONFIG_FILE_PATH "config/streams.json"
 
@@ -24,6 +25,35 @@ print_cameras(const GPtrArray *cameras)
         );
     }
 }
+
+static gboolean
+create_camera_pipelines(Application *application)
+{
+    for (guint i = 0; i < application->cameras->len; i++)
+    {
+        Camera *camera;
+
+        camera = g_ptr_array_index(
+            application->cameras,
+            i
+        );
+
+        if (!pipeline_manager_add_camera(
+                application->pipeline_manager,
+                camera))
+        {
+            g_printerr(
+                "Failed to create pipeline for camera: %s\n",
+                camera->name
+            );
+
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
 gboolean
 application_init(Application *application)
 {
@@ -47,6 +77,23 @@ application_init(Application *application)
     if (application->pipeline_manager == NULL)
     {
         g_printerr("Failed to create pipeline manager.\n");
+
+        g_clear_pointer(
+            &application->cameras,
+            g_ptr_array_unref
+        );
+
+        return FALSE;
+    }
+
+    if (!create_camera_pipelines(application))
+    {
+        g_printerr("Failed to create camera pipelines.\n");
+
+        g_clear_pointer(
+            &application->pipeline_manager,
+            pipeline_manager_free
+        );
 
         g_clear_pointer(
             &application->cameras,

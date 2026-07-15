@@ -3,6 +3,8 @@
 
 #include <glib.h>
 
+#include "camera.h"
+
 typedef struct
 {
     GPtrArray *pipelines;
@@ -15,6 +17,17 @@ typedef struct
  */
 PipelineManager *
 pipeline_manager_new(void);
+
+/**
+ * Creates and adds a pipeline for the given camera.
+ *
+ * Returns TRUE on success, FALSE on failure.
+ */
+gboolean
+pipeline_manager_add_camera(
+    PipelineManager *manager,
+    Camera *camera
+);
 
 /**
  * Releases all resources owned by the pipeline manager.
