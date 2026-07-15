@@ -29,6 +29,13 @@ pkg_check_modules(
     gstreamer-1.0
 )
 
+pkg_check_modules(
+    JSON_GLIB
+    REQUIRED
+    IMPORTED_TARGET
+    json-glib-1.0
+)
+
 # -------------------------------------------------------------------
 # Executable
 # -------------------------------------------------------------------
@@ -59,8 +66,7 @@ target_include_directories(${PROJECT_NAME}
 # -------------------------------------------------------------------
 
 target_link_libraries(${PROJECT_NAME}
-
     PRIVATE
-
         PkgConfig::GSTREAMER
+        PkgConfig::JSON_GLIB
 )

@@ -1,3 +1,16 @@
 {
-    "cameras": []
+    "cameras": [
+        {
+            "id": 1,
+            "name": "Camera 1",
+            "source": "videos/camera1.mp4",
+            "type": "file"
+        },
+        {
+            "id": 2,
+            "name": "Camera 2",
+            "source": "videos/camera2.mp4",
+            "type": "file"
+        }
+    ]
 }
