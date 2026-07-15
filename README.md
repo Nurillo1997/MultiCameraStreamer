@@ -2,14 +2,16 @@
 
 A simple multi-camera streaming application written in C using GStreamer.
 
-The application creates an independent GStreamer pipeline for each camera and publishes video streams over RTSP using MediaMTX.
+The application creates an independent GStreamer pipeline for each camera and publishes video and audio streams over RTSP using MediaMTX.
 
 ## Features
 
 - Multiple independent GStreamer pipelines
 - MP4 files as virtual camera sources
 - RTSP camera source support
-- H.264 encoding
+- H.264 video encoding
+- AAC audio encoding
+- Video and audio streaming over RTSP
 - RTSP streaming with MediaMTX
 - Automatic MP4 looping
 - Graceful shutdown
@@ -50,18 +52,37 @@ Each camera runs in its own independent GStreamer pipeline.
 
 ```text
 MP4 File / RTSP Camera
-        ↓
-    GStreamer
-        ↓
-   Video Decode
-        ↓
-   H.264 Encode
-        ↓
-   RTSP Publish
-        ↓
-     MediaMTX
-        ↓
-    RTSP Client
+          |
+          v
+       GStreamer
+          |
+          v
+       Decode
+       /    \
+      v      v
+   Video    Audio
+     |        |
+     v        v
+   H.264     AAC
+      \      /
+       v    v
+    RTSP Publish
+          |
+          v
+       MediaMTX
+          |
+          v
+      RTSP Client
+   (Video + Audio)
+```
+
+Multiple cameras run independently:
+
+```text
+Camera 1 --> Pipeline 1 --> MediaMTX --> /camera1
+Camera 2 --> Pipeline 2 --> MediaMTX --> /camera2
+Camera N --> Pipeline N --> MediaMTX --> /cameraN
+```
 
 ## Configuration
 
@@ -121,5 +142,7 @@ Default RTSP streams:
 rtsp://localhost:8554/camera1
 rtsp://localhost:8554/camera2
 ```
+
+The RTSP streams contain H.264 video and AAC audio.
 
 Stop the application with `Ctrl+C`.
