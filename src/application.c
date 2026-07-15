@@ -24,7 +24,6 @@ print_cameras(const GPtrArray *cameras)
         );
     }
 }
-
 gboolean
 application_init(Application *application)
 {
@@ -40,6 +39,20 @@ application_init(Application *application)
     if (application->cameras == NULL)
     {
         g_printerr("Failed to load camera configuration.\n");
+        return FALSE;
+    }
+
+    application->pipeline_manager = pipeline_manager_new();
+
+    if (application->pipeline_manager == NULL)
+    {
+        g_printerr("Failed to create pipeline manager.\n");
+
+        g_clear_pointer(
+            &application->cameras,
+            g_ptr_array_unref
+        );
+
         return FALSE;
     }
 
@@ -69,6 +82,11 @@ application_shutdown(Application *application)
     {
         return;
     }
+
+    g_clear_pointer(
+        &application->pipeline_manager,
+        pipeline_manager_free
+    );
 
     g_clear_pointer(
         &application->cameras,

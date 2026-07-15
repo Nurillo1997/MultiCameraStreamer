@@ -3,9 +3,12 @@
 
 #include <glib.h>
 
+#include "pipeline_manager.h"
+
 typedef struct
 {
     GPtrArray *cameras;
+    PipelineManager *pipeline_manager;
 } Application;
 
 /**
