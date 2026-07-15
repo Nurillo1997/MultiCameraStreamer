@@ -12,12 +12,19 @@ typedef struct
     GstElement *pipeline;
     GstElement *source;
     GstElement *decoder;
+
     GstElement *video_convert;
-    GstElement *encoder;
-    GstElement *parser;
+    GstElement *video_encoder;
+    GstElement *video_parser;
+
+    GstElement *audio_convert;
+    GstElement *audio_resample;
+    GstElement *audio_encoder;
+    GstElement *audio_parser;
+
     GstElement *rtsp_sink;
 
-     guint bus_watch_id;
+    guint bus_watch_id;
 } CameraPipeline;
 
 /**

@@ -86,28 +86,12 @@ on_pad_added(
 )
 {
     CameraPipeline *camera_pipeline;
-    GstPad *sink_pad;
+    GstPad *sink_pad = NULL;
     GstCaps *caps;
     const GstStructure *structure;
     const gchar *media_type;
 
     camera_pipeline = user_data;
-
-    sink_pad = gst_element_get_static_pad(
-        camera_pipeline->video_convert,
-        "sink"
-    );
-
-    if (sink_pad == NULL)
-    {
-        return;
-    }
-
-    if (gst_pad_is_linked(sink_pad))
-    {
-        gst_object_unref(sink_pad);
-        return;
-    }
 
     caps = gst_pad_get_current_caps(new_pad);
 
@@ -127,7 +111,6 @@ on_pad_added(
             gst_caps_unref(caps);
         }
 
-        gst_object_unref(sink_pad);
         return;
     }
 
@@ -144,19 +127,43 @@ on_pad_added(
             media_type,
             "video/"))
     {
+        sink_pad = gst_element_get_static_pad(
+            camera_pipeline->video_convert,
+            "sink"
+        );
+    }
+    else if (g_str_has_prefix(
+                 media_type,
+                 "audio/"))
+    {
+        sink_pad = gst_element_get_static_pad(
+            camera_pipeline->audio_convert,
+            "sink"
+        );
+    }
+
+    if (sink_pad == NULL)
+    {
+        gst_caps_unref(caps);
+        return;
+    }
+
+    if (!gst_pad_is_linked(sink_pad))
+    {
         if (gst_pad_link(
                 new_pad,
                 sink_pad) != GST_PAD_LINK_OK)
         {
             g_printerr(
-                "Failed to link video pad for camera: %s\n",
+                "Failed to link '%s' pad for camera: %s\n",
+                media_type,
                 camera_pipeline->camera->name
             );
         }
     }
 
-    gst_caps_unref(caps);
     gst_object_unref(sink_pad);
+    gst_caps_unref(caps);
 }
 
 static void
@@ -349,12 +356,12 @@ camera_pipeline->source = create_source(
         NULL
     );
 
-    camera_pipeline->encoder = gst_element_factory_make(
+    camera_pipeline->video_encoder = gst_element_factory_make(
         "x264enc",
         NULL
     );
 
-    camera_pipeline->parser = gst_element_factory_make(
+    camera_pipeline->video_parser = gst_element_factory_make(
         "h264parse",
         NULL
     );
@@ -364,26 +371,51 @@ camera_pipeline->source = create_source(
         NULL
     );
 
-    if (camera_pipeline->pipeline == NULL ||
-        camera_pipeline->source == NULL ||
-        camera_pipeline->decoder == NULL ||
-        camera_pipeline->video_convert == NULL ||
-        camera_pipeline->encoder == NULL ||
-        camera_pipeline->parser == NULL ||
-        camera_pipeline->rtsp_sink == NULL)
-    {
-        g_printerr(
-            "Failed to create GStreamer elements for camera: %s\n",
-            camera->name
-        );
+    //for audio
+    camera_pipeline->audio_convert = gst_element_factory_make(
+    "audioconvert",
+    NULL
+);
 
-        camera_pipeline_free(camera_pipeline);
-        return NULL;
-    }
+camera_pipeline->audio_resample = gst_element_factory_make(
+    "audioresample",
+    NULL
+);
+
+camera_pipeline->audio_encoder = gst_element_factory_make(
+    "avenc_aac",
+    NULL
+);
+
+camera_pipeline->audio_parser = gst_element_factory_make(
+    "aacparse",
+    NULL
+);
+
+if (camera_pipeline->pipeline == NULL ||
+    camera_pipeline->source == NULL ||
+    camera_pipeline->decoder == NULL ||
+    camera_pipeline->video_convert == NULL ||
+    camera_pipeline->video_encoder == NULL ||
+    camera_pipeline->video_parser == NULL ||
+    camera_pipeline->audio_convert == NULL ||
+    camera_pipeline->audio_resample == NULL ||
+    camera_pipeline->audio_encoder == NULL ||
+    camera_pipeline->audio_parser == NULL ||
+    camera_pipeline->rtsp_sink == NULL)
+{
+    g_printerr(
+        "Failed to create GStreamer elements for camera: %s\n",
+        camera->name
+    );
+
+    camera_pipeline_free(camera_pipeline);
+    return NULL;
+}
 
 
     g_object_set(
-        camera_pipeline->encoder,
+        camera_pipeline->video_encoder,
         "tune",
         0x00000004,
         NULL
@@ -397,15 +429,22 @@ camera_pipeline->source = create_source(
     );
 
     gst_bin_add_many(
-        GST_BIN(camera_pipeline->pipeline),
-        camera_pipeline->source,
-        camera_pipeline->decoder,
-        camera_pipeline->video_convert,
-        camera_pipeline->encoder,
-        camera_pipeline->parser,
-        camera_pipeline->rtsp_sink,
-        NULL
-    );
+    GST_BIN(camera_pipeline->pipeline),
+    camera_pipeline->source,
+    camera_pipeline->decoder,
+
+    camera_pipeline->video_convert,
+    camera_pipeline->video_encoder,
+    camera_pipeline->video_parser,
+
+    camera_pipeline->audio_convert,
+    camera_pipeline->audio_resample,
+    camera_pipeline->audio_encoder,
+    camera_pipeline->audio_parser,
+
+    camera_pipeline->rtsp_sink,
+    NULL
+);
 
     if (camera->source_type == CAMERA_SOURCE_FILE)
 {
@@ -434,8 +473,8 @@ camera_pipeline->source = create_source(
 
     if (!gst_element_link_many(
             camera_pipeline->video_convert,
-            camera_pipeline->encoder,
-            camera_pipeline->parser,
+            camera_pipeline->video_encoder,
+            camera_pipeline->video_parser,
             camera_pipeline->rtsp_sink,
             NULL))
     {
@@ -447,6 +486,23 @@ camera_pipeline->source = create_source(
         camera_pipeline_free(camera_pipeline);
         return NULL;
     }
+
+    if (!gst_element_link_many(
+        camera_pipeline->audio_convert,
+        camera_pipeline->audio_resample,
+        camera_pipeline->audio_encoder,
+        camera_pipeline->audio_parser,
+        camera_pipeline->rtsp_sink,
+        NULL))
+{
+    g_printerr(
+        "Failed to link RTSP audio output pipeline for camera: %s\n",
+        camera->name
+    );
+
+    camera_pipeline_free(camera_pipeline);
+    return NULL;
+}
 
     g_signal_connect(
         camera_pipeline->decoder,
