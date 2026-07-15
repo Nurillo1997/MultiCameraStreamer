@@ -32,7 +32,10 @@ config_manager_load_cameras(const gchar *config_path)
 
     parser = json_parser_new();
 
-    if (!json_parser_load_from_file(parser, config_path, &error))
+    if (!json_parser_load_from_file(
+            parser,
+            config_path,
+            &error))
     {
         g_printerr(
             "Failed to load config file: %s\n",
@@ -58,37 +61,65 @@ config_manager_load_cameras(const gchar *config_path)
         (GDestroyNotify)camera_free
     );
 
-    camera_count = json_array_get_length(cameras_array);
+    camera_count = json_array_get_length(
+        cameras_array
+    );
 
     for (guint i = 0; i < camera_count; i++)
     {
         JsonObject *camera_object;
         Camera *camera;
+
         guint id;
         const gchar *name;
         const gchar *source;
         const gchar *type;
+        const gchar *rtsp_url;
 
         camera_object = json_array_get_object_element(
             cameras_array,
             i
         );
 
-        id = json_object_get_int_member(camera_object, "id");
-        name = json_object_get_string_member(camera_object, "name");
-        source = json_object_get_string_member(camera_object, "source");
-        type = json_object_get_string_member(camera_object, "type");
+        id = json_object_get_int_member(
+            camera_object,
+            "id"
+        );
+
+        name = json_object_get_string_member(
+            camera_object,
+            "name"
+        );
+
+        source = json_object_get_string_member(
+            camera_object,
+            "source"
+        );
+
+        type = json_object_get_string_member(
+            camera_object,
+            "type"
+        );
+
+        rtsp_url = json_object_get_string_member(
+            camera_object,
+            "rtsp_url"
+        );
 
         camera = camera_new(
             id,
             name,
             source,
-            parse_source_type(type)
+            parse_source_type(type),
+            rtsp_url
         );
 
         if (camera != NULL)
         {
-            g_ptr_array_add(cameras, camera);
+            g_ptr_array_add(
+                cameras,
+                camera
+            );
         }
     }
 

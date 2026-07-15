@@ -13,7 +13,9 @@ typedef struct
     GstElement *source;
     GstElement *decoder;
     GstElement *video_convert;
-    GstElement *video_sink;
+    GstElement *encoder;
+    GstElement *parser;
+    GstElement *rtsp_sink;
 } CameraPipeline;
 
 /**

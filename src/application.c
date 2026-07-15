@@ -21,10 +21,13 @@ print_cameras(const GPtrArray *cameras)
         );
 
         printf(
-            "Camera loaded: id=%u, name=%s, source=%s\n",
+            "Camera loaded: id=%u, name=%s\n"
+            "  Source: %s\n"
+            "  RTSP output: %s\n",
             camera->id,
             camera->name,
-            camera->source
+            camera->source,
+            camera->rtsp_url
         );
     }
 }

@@ -30,15 +30,37 @@ on_pad_added(
 
     if (caps == NULL)
     {
-        caps = gst_pad_query_caps(new_pad, NULL);
+        caps = gst_pad_query_caps(
+            new_pad,
+            NULL
+        );
     }
 
-    structure = gst_caps_get_structure(caps, 0);
-    media_type = gst_structure_get_name(structure);
+    if (caps == NULL || gst_caps_is_empty(caps))
+    {
+        if (caps != NULL)
+        {
+            gst_caps_unref(caps);
+        }
+
+        gst_object_unref(sink_pad);
+        return;
+    }
+
+    structure = gst_caps_get_structure(
+        caps,
+        0
+    );
+
+    media_type = gst_structure_get_name(
+        structure
+    );
 
     if (g_str_has_prefix(media_type, "video/"))
     {
-        if (gst_pad_link(new_pad, sink_pad) != GST_PAD_LINK_OK)
+        if (gst_pad_link(
+                new_pad,
+                sink_pad) != GST_PAD_LINK_OK)
         {
             g_printerr(
                 "Failed to link video pad for camera: %s\n",
@@ -61,25 +83,44 @@ camera_pipeline_new(Camera *camera)
         return NULL;
     }
 
-    camera_pipeline = g_new0(CameraPipeline, 1);
+    camera_pipeline = g_new0(
+        CameraPipeline,
+        1
+    );
 
     camera_pipeline->camera = camera;
 
-    camera_pipeline->pipeline = gst_pipeline_new(camera->name);
+    camera_pipeline->pipeline = gst_pipeline_new(
+        camera->name
+    );
+
     camera_pipeline->source = gst_element_factory_make(
         "filesrc",
         NULL
     );
+
     camera_pipeline->decoder = gst_element_factory_make(
         "decodebin",
         NULL
     );
+
     camera_pipeline->video_convert = gst_element_factory_make(
         "videoconvert",
         NULL
     );
-    camera_pipeline->video_sink = gst_element_factory_make(
-        "fakesink",
+
+    camera_pipeline->encoder = gst_element_factory_make(
+        "x264enc",
+        NULL
+    );
+
+    camera_pipeline->parser = gst_element_factory_make(
+        "h264parse",
+        NULL
+    );
+
+    camera_pipeline->rtsp_sink = gst_element_factory_make(
+        "rtspclientsink",
         NULL
     );
 
@@ -87,7 +128,9 @@ camera_pipeline_new(Camera *camera)
         camera_pipeline->source == NULL ||
         camera_pipeline->decoder == NULL ||
         camera_pipeline->video_convert == NULL ||
-        camera_pipeline->video_sink == NULL)
+        camera_pipeline->encoder == NULL ||
+        camera_pipeline->parser == NULL ||
+        camera_pipeline->rtsp_sink == NULL)
     {
         g_printerr(
             "Failed to create GStreamer elements for camera: %s\n",
@@ -105,12 +148,28 @@ camera_pipeline_new(Camera *camera)
         NULL
     );
 
+    g_object_set(
+        camera_pipeline->encoder,
+        "tune",
+        0x00000004,
+        NULL
+    );
+
+    g_object_set(
+        camera_pipeline->rtsp_sink,
+        "location",
+        camera->rtsp_url,
+        NULL
+    );
+
     gst_bin_add_many(
         GST_BIN(camera_pipeline->pipeline),
         camera_pipeline->source,
         camera_pipeline->decoder,
         camera_pipeline->video_convert,
-        camera_pipeline->video_sink,
+        camera_pipeline->encoder,
+        camera_pipeline->parser,
+        camera_pipeline->rtsp_sink,
         NULL
     );
 
@@ -127,12 +186,15 @@ camera_pipeline_new(Camera *camera)
         return NULL;
     }
 
-    if (!gst_element_link(
+    if (!gst_element_link_many(
             camera_pipeline->video_convert,
-            camera_pipeline->video_sink))
+            camera_pipeline->encoder,
+            camera_pipeline->parser,
+            camera_pipeline->rtsp_sink,
+            NULL))
     {
         g_printerr(
-            "Failed to link video converter and sink for camera: %s\n",
+            "Failed to link RTSP output pipeline for camera: %s\n",
             camera->name
         );
 
@@ -176,6 +238,12 @@ camera_pipeline_start(CameraPipeline *camera_pipeline)
         return FALSE;
     }
 
+    g_print(
+        "RTSP publishing started: %s -> %s\n",
+        camera_pipeline->camera->name,
+        camera_pipeline->camera->rtsp_url
+    );
+
     return TRUE;
 }
 
@@ -204,8 +272,13 @@ camera_pipeline_free(CameraPipeline *camera_pipeline)
 
     if (camera_pipeline->pipeline != NULL)
     {
-        camera_pipeline_stop(camera_pipeline);
-        gst_object_unref(camera_pipeline->pipeline);
+        camera_pipeline_stop(
+            camera_pipeline
+        );
+
+        gst_object_unref(
+            camera_pipeline->pipeline
+        );
     }
 
     g_free(camera_pipeline);

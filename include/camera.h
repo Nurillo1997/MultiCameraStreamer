@@ -13,7 +13,7 @@ typedef enum
 } CameraSourceType;
 
 /**
- * Represents a camera source.
+ * Represents a camera source and its RTSP output.
  */
 typedef struct
 {
@@ -21,6 +21,7 @@ typedef struct
     gchar *name;
     gchar *source;
     CameraSourceType source_type;
+    gchar *rtsp_url;
 } Camera;
 
 /**
@@ -33,7 +34,8 @@ camera_new(
     guint id,
     const gchar *name,
     const gchar *source,
-    CameraSourceType source_type
+    CameraSourceType source_type,
+    const gchar *rtsp_url
 );
 
 /**

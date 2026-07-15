@@ -4,13 +4,15 @@
             "id": 1,
             "name": "Camera 1",
             "source": "videos/camera1.mp4",
-            "type": "file"
+            "type": "file",
+            "rtsp_url": "rtsp://localhost:8554/camera1"
         },
         {
             "id": 2,
             "name": "Camera 2",
             "source": "videos/camera2.mp4",
-            "type": "file"
+            "type": "file",
+            "rtsp_url": "rtsp://localhost:8554/camera2"
         }
     ]
 }
